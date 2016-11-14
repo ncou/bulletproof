@@ -54,12 +54,12 @@ class Image implements \ArrayAccess
     /**
      * @var array The min and max image size allowed for upload (in bytes)
      */
-    protected $size = array(100, 50000);
+    protected $size = array(100, 500000);
 
     /**
      * @var array The max height and width image allowed
      */
-    protected $dimensions = array(500, 5000);
+    protected $dimensions = array(1024, 1024);
 
     /**
      * @var array The mime types allowed for upload
@@ -79,6 +79,7 @@ class Image implements \ArrayAccess
      * @var array storage for the $_FILES global array
      */
     private $_files = array();
+    private $_file;
 
     /**
      * @var string storage for any errors
@@ -130,7 +131,9 @@ class Image implements \ArrayAccess
         }
 
         if (isset($this->_files[$offset]) && file_exists($this->_files[$offset]["tmp_name"])) {
-            $this->_files = $this->_files[$offset];
+            $this->_file = $this->_files[$offset];
+
+            echo "    /".(print_r($this->_files[$offset]["name"]))."/     ";
             return true;
         }
         
@@ -223,11 +226,11 @@ class Image implements \ArrayAccess
      */
     public function getName()
     {
-        if (!$this->name) {
+        //if (!$this->name) {
            return  uniqid(true) . "_" . str_shuffle(implode(range("e", "q")));
-        }
+        //}
 
-        return $this->name;
+        //return $this->name;
     }
 
     /**
@@ -248,8 +251,19 @@ class Image implements \ArrayAccess
      */
     public function getSize()
     {
-        return (int) $this->_files["size"];
+        return (int) $this->_file["size"];
     }
+
+    /**
+     * Returns the image original filename
+     *
+     * @return int
+     */
+    public function getOriginalFilename()
+    {
+        return pathinfo($this->_file["name"], PATHINFO_FILENAME);
+    }
+
 
     /**
      * Returns the image height in pixels
@@ -262,7 +276,7 @@ class Image implements \ArrayAccess
             return $this->height;
         }
 
-        list(, $height) = getImageSize($this->_files["tmp_name"]); 
+        list(, $height) = getImageSize($this->_file["tmp_name"]); 
         return $height;
     }
 
@@ -277,7 +291,7 @@ class Image implements \ArrayAccess
             return $this->width;
         }
 
-        list($width) = getImageSize($this->_files["tmp_name"]); 
+        list($width) = getImageSize($this->_file["tmp_name"]); 
         return $width;
     }
 
@@ -354,7 +368,9 @@ class Image implements \ArrayAccess
     {
         /* modify variable names for convenience */
         $image = $this; 
-        $files = $this->_files;
+        $file = $this->_file;
+
+        //echo (print_r($file));
 
         /* initialize image properties */
         $image->name     = $image->getName();
@@ -366,12 +382,12 @@ class Image implements \ArrayAccess
         list($minSize, $maxSize) = $image->size;
 
         /* check for common upload errors */
-        if($image->error = $image->uploadErrors($files["error"])){
+        if($image->error = $image->uploadErrors($file["error"])){
             return ;
         }
 
         /* check image for valid mime types and return mime */
-        $image->mime = $image->getImageMime($files["tmp_name"]);
+        $image->mime = $image->getImageMime($file["tmp_name"]);
 
         /* validate image mime type */
         if (!in_array($image->mime, $image->mimeTypes)) {
@@ -381,7 +397,7 @@ class Image implements \ArrayAccess
         }     
 
         /* check image size based on the settings */
-        if ($files["size"] < $minSize || $files["size"] > $maxSize) {
+        if ($file["size"] < $minSize || $file["size"] > $maxSize) {
             $min = intval($minSize / 1000) ?: 1; $max = intval($maxSize / 1000);
             
             $image->error = "Image size should be atleast more than min: $min and less than max: $max kb";
@@ -406,17 +422,21 @@ class Image implements \ArrayAccess
 
         /* gather image info for json storage */ 
         $image->serialize = array(
+            "original_filename" => $image->getOriginalFilename(),
             "name"     => $image->name,
             "mime"     => $image->mime,
             "height"   => $image->height,
             "width"    => $image->width,
-            "size"     => $files["size"],
+            "size"     => $image->getSize(),
             "location" => $image->location,
             "fullpath" => $image->fullPath
         );
 
         if ($image->error === "") {
-            $moveUpload = $image->moveUploadedFile($files["tmp_name"], $image->fullPath);
+
+            echo ("   ***".$file["tmp_name"]."***".$image->fullPath."***   ");
+
+            $moveUpload = $image->moveUploadedFile($file["tmp_name"], $image->fullPath);
             if (false !== $moveUpload) {
                 return $image;
             }
